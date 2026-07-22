@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+.pytest_cache/
+.python-version
+
+# Environments
+venv/
+.venv/
+.env.local
+.env.*
+.python-version
+
+# Data files
+*.csv
+*.json
+*.pkl
+*.faiss
+*.zip
+
+# Keep model files
+!app/pipeline/segment_pipeline/middleware/batting/models/*.pkl
+!app/pipeline/segment_pipeline/middleware/batting/models/*.h5
+!app/pipeline/segment_pipeline/middleware/batting/models/*.pt
+
+# RAG index files (keep these)
+!RAG/physio/*.pkl
+!RAG/physio/*.faiss
+
+# Data directories
+Raw Data/
+data/
+data_processed/
+output_clips/
+pitch_data/
+ball_data/
+ball_data_A/
+ball_data_sliced/
+sample_video/
+stumps_data/
+training_set/
+
+# Media
+*.mp4
+*.jpg
+*.jpeg
+*.png
+*.gif
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
