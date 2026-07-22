@@ -1,0 +1,18 @@
+# faiss-cpu
+httpx
+json_repair
+langchain_core
+langchain_google_genai
+langfuse
+numpy
+pandas
+protobuf
+pydantic
+pydantic_settings
+pypdf
+python-dotenv
+# sentence_transformers
+langchain
+google-cloud-storage
+xgboost==2.0.3
+scikit-learn==1.8.0

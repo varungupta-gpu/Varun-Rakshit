@@ -1,0 +1,16 @@
+# Config for batting analysis pipeline (in-memory only)
+
+phase_classification:
+  temporal_window: 3
+  smoothing_window: 5
+  device: cuda:0
+  enable_smoothing: true
+  phases:
+    - preparation
+    - downswing
+    - followthrough
+  xgboost:
+    n_estimators: 250
+    learning_rate: 0.05
+    max_depth: 5
+    eval_metric: mlogloss
