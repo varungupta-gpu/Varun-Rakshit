@@ -511,3 +511,59 @@ def combine_player_outputs(
     return combined_json
 
 
+def build_session_metrics_batsman(api_response: Dict[str, Any], session_id: str = None, user_id: str = None, metadata: Dict[str, Any] = None, tags: List[str] = None) -> Dict[str, Any]:
+    """
+    Build session metrics for batsman analysis.
+    Extracts batsman-specific biomechanics data from API response.
+    """
+    
+    runner = RunnableLambda(lambda x: x).with_config({**get_langfuse_config(session_id=session_id, user_id=user_id, trace_name="session_metrics_batsman", metadata=metadata, tags=tags), "run_name": "session_metrics_batsman"})
+    
+    try:
+        segments = validate_session_data(api_response)
+        
+        segment_ids = []
+        segment_insight_ids = []
+        combined_llm_insights = []
+        combined_biomechanics_reports = []
+        
+        for segment in segments:
+            llm_segment_insight = segment.get("llm_segment_insight")
+            
+            print("==========================================")
+            print("llm_segment_insight (batsman)", llm_segment_insight)
+            print("==========================================")
+            
+            if llm_segment_insight and llm_segment_insight.get("id"):
+                segment_ids.append(segment.get("segment_id"))
+                segment_insight_ids.append(llm_segment_insight.get("id"))
+                
+                results = llm_segment_insight.get("results", {})
+                
+                llm_insights = results.get("llm_insights")
+                if llm_insights:
+                    combined_llm_insights.append(llm_insights)
+                
+                bio_mechanics_report = results.get("bio_mechanics_report")
+                if bio_mechanics_report:
+                    combined_biomechanics_reports.append({
+                        "segment_id": segment.get("segment_id"),
+                        "bio_mechanics_report": bio_mechanics_report
+                    })
+        
+        session_metrics = copy.deepcopy(EMPTY_SESSION_SCHEMA)
+        
+        session_metrics["session_biomechanics_analysis"]["segment_ids"] = segment_ids
+        session_metrics["session_biomechanics_analysis"]["segment_insight_ids"] = segment_insight_ids
+        session_metrics["session_biomechanics_analysis"]["segment_llm_insights"] = combined_llm_insights
+        session_metrics["session_biomechanics_analysis"]["segment_biomechanics_reports"] = combined_biomechanics_reports
+        
+        runner.invoke({"status": "completed", "total_segments": len(segments)})
+        
+        return session_metrics
+    
+    except Exception as e:
+        runner.invoke({"status": "failed", "error": str(e)})
+        raise e
+
+
