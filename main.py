@@ -729,13 +729,22 @@ def main():
                     final_player_report = combine_player_outputs(session_analysis_json, correction, injury)
 
 
-# #---------------------Adding API check for the failure of complete run_session_agent function---------------------
+#----------------------------Saving session analysis in DB---------------------------------------------------------
+                    logger.info("Saving session analysis to DB...")
+                    try:
+                        save_session_data(req, final_player_report, session_metrics)
+                        logger.info("session Analysis Saved Successfully")
+
+                    except Exception:
+                        handle_pipeline_failure(req)
+                        logger.exception("[session PIPELINE FAILURE] Failed to save session analysis to DB")
+                        raise
 
                 except Exception:
                     handle_pipeline_failure(req)
                     logger.exception("[SESSION PIPELINE FAILURE] Session LLM analysis failed")
                     raise
-        
+
         except Exception as e:
             logger.exception(f"Job failed with error: {e}")
             langfuse.flush()
