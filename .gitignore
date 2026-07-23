@@ -15,6 +15,9 @@ venv/
 .env.local
 .env.*
 .python-version
+.env
+.env.local
+.env.*
 
 # Data files
 *.csv
