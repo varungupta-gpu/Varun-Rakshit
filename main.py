@@ -11,12 +11,15 @@ from app.services.gcs_client import GCSClient
 from app.pipeline.segment_pipeline.middleware.pipeline import run_pipeline
 from app.pipeline.segment_pipeline.runner import run_full_analysis
 from app.pipeline.session_pipeline.session.session_metrics import build_session_metrics
+from app.pipeline.session_pipeline.session.session_metrics import build_session_metrics_batsman
 from app.pipeline.session_pipeline.session.session_metrics import combine_player_outputs
 from app.pipeline.session_pipeline.session.session_metrics import add_phase_frames_to_injuries
 from app.pipeline.session_pipeline.session.session_metrics import add_phase_frames_to_corrections
 from app.pipeline.session_pipeline.session.session_agent import generate_session_analysis
+from app.pipeline.session_pipeline.session.session_agent_batting import generate_combined_analysis
 from app.pipeline.session_pipeline.session.injury.injury_llm import generate_injury_risks
 from app.pipeline.session_pipeline.session.correction.correction_llm import generate_corrections
+from app.pipeline.session_pipeline.session.correction.correction_llm_batting import generate_correction_analysis
 import warnings
 
 
@@ -294,7 +297,7 @@ def fetch_session_data( request: BallSegmentAnalysisRequest) -> dict:
     # ==========================================
     # FETCH SESSION BATCH DATA
     # ==========================================
-
+# curl command for postman
     try:
         response = api.get_player_overview(player_id=request.player_id)
         logger.info("Session batch insights fetched successfully")
@@ -735,7 +738,102 @@ def main():
                     handle_pipeline_failure(req)
                     logger.exception("[SESSION PIPELINE FAILURE] Session LLM analysis failed")
                     raise
-        
+
+# ======================================================
+# BATSMAN ANALYSIS
+# ======================================================
+
+            elif req.analysis_type == "batsman":
+
+                logger.info("===== RUNNING BATSMAN ANALYSIS =====")
+
+                try:
+                    session_api_response = fetch_session_data(req)
+                    logger.info("Session batch API fetched successfully")
+
+                except Exception:
+                    handle_pipeline_failure(req)
+                    logger.exception("[BATSMAN PIPELINE FAILURE] Failed to fetch session batch API data")
+                    raise
+
+                try:
+                    session_metrics = build_session_metrics_batsman(
+                        session_api_response,
+                        session_id=req.request_id,
+                        user_id=getattr(req, "user_id", None),
+                        metadata={"analysis_type": "session_metrics_batsman", "video_id": req.video_id, "llm_insight_id": req.llm_insight_id},
+                        tags=["batsman-analysis", "metrics"]
+                    )
+
+                    logger.info("Batsman Session Metrics Generated")
+
+                except Exception:
+                    handle_pipeline_failure(req)
+                    logger.exception("[BATSMAN PIPELINE FAILURE] Failed while building batsman session metrics")
+                    raise
+
+                try:
+                    combined_biomechanics_json = session_metrics["session_biomechanics_analysis"]["segment_biomechanics_reports"]
+
+                    # Generate combined analysis (stance + preparation)
+                    logger.info("Generating Combined Analysis (Stance + Preparation) : ")
+                    
+                    output_dir = Path("output") / "batsman_analysis" / f"{req.request_id}"
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    
+                    combined_analysis_success = generate_combined_analysis(combined_biomechanics_json, output_dir)
+                    
+                    if combined_analysis_success:
+                        combined_analysis_path = output_dir / "combined_analysis.json"
+                        with open(combined_analysis_path, 'r', encoding='utf-8') as f:
+                            combined_analysis_json = json.load(f)
+                        logger.info("Combined Analysis Generated Successfully")
+                    else:
+                        logger.error("Combined Analysis Failed")
+                        combined_analysis_json = None
+
+                    # Generate correction analysis
+                    logger.info("Generating Correction Analysis : ")
+                    
+                    correction_analysis_success = generate_correction_analysis(combined_biomechanics_json, output_dir)
+                    
+                    if correction_analysis_success:
+                        correction_analysis_path = output_dir / "correction_analysis.json"
+                        with open(correction_analysis_path, 'r', encoding='utf-8') as f:
+                            correction_analysis_json = json.load(f)
+                        logger.info("Correction Analysis Generated Successfully")
+                    else:
+                        logger.error("Correction Analysis Failed")
+                        correction_analysis_json = None
+
+                    # Combine outputs
+                    logger.info("Combining batsman outputs : ")
+                    
+                    final_batsman_report = {}
+                    if combined_analysis_json:
+                        final_batsman_report.update(combined_analysis_json)
+                    if correction_analysis_json:
+                        final_batsman_report["corrections"] = correction_analysis_json
+
+                    # Save batsman analysis
+                    logger.info("Saving batsman analysis to DB...")
+                    try:
+                        save_session_data(req, final_batsman_report, session_metrics)
+                        logger.info("Batsman Analysis Saved Successfully")
+
+                    except Exception:
+                        handle_pipeline_failure(req)
+                        logger.exception("[BATSMAN PIPELINE FAILURE] Failed to save batsman analysis to DB")
+                        raise
+
+                except Exception:
+                    handle_pipeline_failure(req)
+                    logger.exception("[BATSMAN PIPELINE FAILURE] Batsman LLM analysis failed")
+                    raise
+
+                logger.info("===== BATSMAN ANALYSIS COMPLETE =====")
+
+        #batting
         except Exception as e:
             logger.exception(f"Job failed with error: {e}")
             langfuse.flush()
